@@ -1,0 +1,12 @@
+[
+   {
+      "id": "task_wikipedia_ai",
+      "start_url": "https://en.wikipedia.org/wiki/Artificial_intelligence",
+      "goal": "Find the year of the Dartmouth workshop and finish with the answer in action_input."
+   },
+   {
+      "id": "task_python_org",
+      "start_url": "https://www.python.org/",
+      "goal": "Navigate to Downloads page and finish with a short summary in action_input."
+   }
+]
