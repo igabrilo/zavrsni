@@ -20,7 +20,9 @@
 ```python
 import os
 
-os.environ["MODEL_ID"] = "microsoft/phi-2"   # ili drugi lokalni model
+os.environ["MODEL_ID"] = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+# Opcionalno za vece limite i brze preuzimanje:
+# os.environ["HF_TOKEN"] = "tvoj_hf_token"
 os.environ["MAX_STEPS"] = "8"
 os.environ["TASKS_PATH"] = "configs/tasks_phase1.json"
 ```

@@ -3,26 +3,28 @@ import os
 import re
 import time
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import torch
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 
 # Colab notes:
 # 1) pip install -r requirements-colab.txt
 # 2) python -m playwright install chromium
-# 3) export MODEL_ID="microsoft/phi-2" (or another local model)
+# 3) export MODEL_ID="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+#    optional: export HF_TOKEN="..." for faster/less-limited HF downloads
 # 4) python src/phase1/colab_agent.py
 
 
 @dataclass
 class AgentConfig:
-    model_id: str = "microsoft/phi-2"
+    model_id: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    fallback_model_id: str = "Qwen/Qwen2.5-1.5B-Instruct"
     max_steps: int = 8
     max_new_tokens: int = 140
     temperature: float = 0.2
@@ -47,7 +49,7 @@ class JsonlLogger:
         self.path = self.logs_dir / f"{run_id}.jsonl"
 
     def log(self, event: Dict[str, Any]) -> None:
-        payload = {"ts": datetime.utcnow().isoformat(), **event}
+        payload = {"ts": datetime.now(timezone.utc).isoformat(), **event}
         with self.path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
@@ -56,18 +58,61 @@ class LocalReasoner:
     def __init__(self, config: AgentConfig) -> None:
         self.config = config
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.hf_token = os.getenv("HF_TOKEN") or None
 
-        self.tokenizer = AutoTokenizer.from_pretrained(config.model_id, trust_remote_code=True)
+        hf_kwargs: Dict[str, Any] = {"trust_remote_code": True}
+        if self.hf_token:
+            hf_kwargs["token"] = self.hf_token
+
+        self.tokenizer = AutoTokenizer.from_pretrained(config.model_id, **hf_kwargs)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
+        # Load config, set pad_token_id if missing, then load model
+        model_config = AutoConfig.from_pretrained(config.model_id, **hf_kwargs)
+        pad_id = self.tokenizer.pad_token_id
+        if pad_id is None:
+            pad_id = self.tokenizer.eos_token_id
+
+        # Some configs (for example Phi in newer stacks) can miss pad_token_id.
+        # Set it explicitly in both attribute and internal dict to avoid init errors.
+        setattr(model_config, "pad_token_id", pad_id)
+        model_config.__dict__["pad_token_id"] = pad_id
+
         dtype = torch.float16 if self.device == "cuda" else torch.float32
-        self.model = AutoModelForCausalLM.from_pretrained(
-            config.model_id,
-            torch_dtype=dtype,
-            device_map="auto",
-            trust_remote_code=True,
-        )
+        model_kwargs: Dict[str, Any] = {
+            "dtype": dtype,
+            "device_map": "auto",
+            "config": model_config,
+            **hf_kwargs,
+        }
+
+        try:
+            self.model = AutoModelForCausalLM.from_pretrained(config.model_id, **model_kwargs)
+        except AttributeError as exc:
+            if "pad_token_id" not in str(exc):
+                raise
+
+            # Fallback for model/config compatibility issues in Colab package mixes.
+            fallback_id = config.fallback_model_id
+            self.tokenizer = AutoTokenizer.from_pretrained(fallback_id, **hf_kwargs)
+            if self.tokenizer.pad_token is None:
+                self.tokenizer.pad_token = self.tokenizer.eos_token
+
+            fallback_config = AutoConfig.from_pretrained(fallback_id, **hf_kwargs)
+            fallback_pad_id = self.tokenizer.pad_token_id
+            if fallback_pad_id is None:
+                fallback_pad_id = self.tokenizer.eos_token_id
+            setattr(fallback_config, "pad_token_id", fallback_pad_id)
+            fallback_config.__dict__["pad_token_id"] = fallback_pad_id
+
+            self.model = AutoModelForCausalLM.from_pretrained(
+                fallback_id,
+                dtype=dtype,
+                device_map="auto",
+                config=fallback_config,
+                **hf_kwargs,
+            )
 
     def decide(self, goal: str, observation: Dict[str, Any]) -> AgentAction:
         prompt = self._build_prompt(goal, observation)
@@ -273,10 +318,10 @@ def load_tasks(path: str) -> List[Dict[str, str]]:
 
 
 def run_batch(config: AgentConfig, tasks_path: str) -> List[Dict[str, Any]]:
-    run_id = datetime.utcnow().strftime("run_%Y%m%d_%H%M%S")
+    run_id = datetime.now(timezone.utc).strftime("run_%Y%m%d_%H%M%S")
     logger = JsonlLogger(config.logs_dir, run_id)
-    reasoner = LocalReasoner(config)
     controller = BrowserController(config.screenshots_dir)
+    reasoner = LocalReasoner(config)
 
     logger.log(
         {
@@ -305,7 +350,7 @@ def run_batch(config: AgentConfig, tasks_path: str) -> List[Dict[str, Any]]:
 
 def main() -> None:
     config = AgentConfig(
-        model_id=os.getenv("MODEL_ID", "microsoft/phi-2"),
+        model_id=os.getenv("MODEL_ID", "TinyLlama/TinyLlama-1.1B-Chat-v1.0"),
         max_steps=int(os.getenv("MAX_STEPS", "8")),
     )
 
