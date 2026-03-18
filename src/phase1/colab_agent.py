@@ -15,10 +15,11 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 # Colab notes:
 # 1) pip install -r requirements-colab.txt
-# 2) python -m playwright install chromium
-# 3) export MODEL_ID="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+# 2) apt-get install browser libs (see notebooks/00_colab_quickstart.md)
+# 3) python -m playwright install --with-deps chromium
+# 4) export MODEL_ID="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 #    optional: export HF_TOKEN="..." for faster/less-limited HF downloads
-# 4) python src/phase1/colab_agent.py
+# 5) python src/phase1/colab_agent.py
 
 
 @dataclass
@@ -186,10 +187,24 @@ class BrowserController:
         task_id: str,
     ) -> Dict[str, Any]:
         with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True,
-                args=["--disable-dev-shm-usage", "--no-sandbox", "--disable-gpu"],
-            )
+            try:
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=["--disable-dev-shm-usage", "--no-sandbox", "--disable-gpu"],
+                )
+            except Exception as exc:  # noqa: BLE001
+                error_text = str(exc)
+                if "error while loading shared libraries" in error_text or "libatk-1.0.so.0" in error_text:
+                    raise RuntimeError(
+                        "Playwright Chromium cannot start because Linux browser dependencies are missing in Colab.\n"
+                        "Run these commands in a Colab cell, then retry:\n"
+                        "!apt-get update -y && apt-get install -y libatk1.0-0 libatk-bridge2.0-0 "
+                        "libgtk-3-0 libnss3 libnspr4 libcups2 libxcomposite1 libxdamage1 libxfixes3 "
+                        "libxrandr2 libgbm1 libxkbcommon0 libasound2 libatspi2.0-0\n"
+                        "!python -m playwright install --with-deps chromium"
+                    ) from exc
+                raise
+
             context = browser.new_context(viewport={"width": 1280, "height": 720})
             page = context.new_page()
 

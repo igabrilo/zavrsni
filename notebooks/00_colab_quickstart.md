@@ -12,7 +12,8 @@
 
 ```bash
 !pip install -q -r requirements-colab.txt
-!python -m playwright install chromium
+!apt-get update -y && apt-get install -y libatk1.0-0 libatk-bridge2.0-0 libgtk-3-0 libnss3 libnspr4 libcups2 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libxkbcommon0 libasound2 libatspi2.0-0
+!python -m playwright install --with-deps chromium
 ```
 
 ## 3) Varijable
