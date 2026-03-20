@@ -13,21 +13,11 @@ from playwright.sync_api import sync_playwright
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 
-# Colab notes:
-# 1) pip install -r requirements-colab.txt
-# 2) apt-get install browser libs (see notebooks/00_colab_quickstart.md)
-# 3) python -m playwright install --with-deps chromium
-# 4) export MODEL_ID="Qwen/Qwen2.5-7B-Instruct"
-#    export LOAD_IN_4BIT="1"  # recommended for 7B on Colab L4
-#    optional: export HF_TOKEN="..." for faster/less-limited HF downloads
-# 5) python src/phase1/colab_agent.py
-
-
 @dataclass
 class AgentConfig:
-    model_id: str = "Qwen/Qwen2.5-3B-Instruct"
-    fallback_model_id: str = "Qwen/Qwen2.5-1.5B-Instruct"
-    load_in_4bit: bool = False
+    model_id: str = "Qwen/Qwen2.5-7B-Instruct"
+    fallback_model_id: str = "Qwen/Qwen2.5-3B-Instruct"
+    load_in_4bit: bool = True
     max_steps: int = 12
     max_new_tokens: int = 140
     temperature: float = 0.0
@@ -551,8 +541,8 @@ def main() -> None:
         return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
 
     config = AgentConfig(
-        model_id=os.getenv("MODEL_ID", "Qwen/Qwen2.5-3B-Instruct"),
-        load_in_4bit=parse_bool_env("LOAD_IN_4BIT", False),
+        model_id=os.getenv("MODEL_ID", "Qwen/Qwen2.5-7B-Instruct"),
+        load_in_4bit=parse_bool_env("LOAD_IN_4BIT", True),
         max_steps=int(os.getenv("MAX_STEPS", "12")),
     )
 

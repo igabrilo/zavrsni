@@ -29,6 +29,12 @@ os.environ["MAX_STEPS"] = "12"
 os.environ["TASKS_PATH"] = "configs/tasks_phase1.json"
 ```
 
+Za prosireni benchmark set (web + lokalni security scenariji):
+
+```python
+os.environ["TASKS_PATH"] = "configs/tasks_phase1_extended.json"
+```
+
 Preporuka za bolji rezultat u Phase 1:
 
 ```python
