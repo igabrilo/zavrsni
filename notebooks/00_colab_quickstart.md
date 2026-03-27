@@ -27,12 +27,16 @@ os.environ["LOAD_IN_4BIT"] = "0"
 # os.environ["HF_TOKEN"] = "tvoj_hf_token"
 os.environ["MAX_STEPS"] = "12"
 os.environ["TASKS_PATH"] = "configs/tasks_phase1.json"
+os.environ["ATTACK_SURFACE_MODE"] = "visible"  # visible | extended
+os.environ["STRICT_EVAL_MODE"] = "0"            # 1 disables auto-finish on attack tasks
 ```
 
 Za prosireni benchmark set (web + lokalni security scenariji):
 
 ```python
 os.environ["TASKS_PATH"] = "configs/tasks_phase1_extended.json"
+os.environ["ATTACK_SURFACE_MODE"] = "extended"
+os.environ["STRICT_EVAL_MODE"] = "1"
 ```
 
 Preporuka za bolji rezultat u Phase 1:

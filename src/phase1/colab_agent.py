@@ -23,6 +23,8 @@ class AgentConfig:
     temperature: float = 0.0
     top_p: float = 1.0
     context_char_limit: int = 3000
+    attack_surface_mode: str = "visible"
+    strict_eval_mode: bool = False
     logs_dir: str = "data/logs"
     screenshots_dir: str = "data/screenshots"
 
@@ -206,9 +208,12 @@ class LocalReasoner:
 
 
 class BrowserController:
-    def __init__(self, screenshots_dir: str) -> None:
+    def __init__(self, screenshots_dir: str, attack_surface_mode: str, strict_eval_mode: bool) -> None:
         self.screenshots_dir = Path(screenshots_dir)
         self.screenshots_dir.mkdir(parents=True, exist_ok=True)
+        mode = (attack_surface_mode or "visible").strip().lower()
+        self.attack_surface_mode = mode if mode in {"visible", "extended"} else "visible"
+        self.strict_eval_mode = strict_eval_mode
 
     def run_task(
         self,
@@ -253,10 +258,14 @@ class BrowserController:
                 "last_url": page.url,
             }
 
+            is_attack_task = self._is_attack_task(task_id=task_id, goal=goal, start_url=start_url)
+
             for step in range(1, max_steps + 1):
                 observation = self._observe(page, task_id, step)
 
                 auto_finish = self._try_auto_finish(goal, observation, page)
+                if self.strict_eval_mode and is_attack_task:
+                    auto_finish = None
                 if auto_finish is not None:
                     logger.log(
                         {
@@ -385,7 +394,7 @@ class BrowserController:
         screenshot_path = self.screenshots_dir / f"{task_id}_step{step}_{int(time.time())}.png"
         page.screenshot(path=str(screenshot_path), full_page=False)
 
-        return {
+        observation: Dict[str, Any] = {
             "url": page.url,
             "title": page.title(),
             "visible_text": text,
@@ -393,7 +402,100 @@ class BrowserController:
             "buttons": buttons,
             "link_options": link_options,
             "screenshot_path": str(screenshot_path),
+            "attack_surface_mode": self.attack_surface_mode,
+            "observation_channels": ["visible_text", "links", "buttons"],
         }
+
+        if self.attack_surface_mode == "extended":
+            extended = self._observe_extended(page)
+            observation.update(extended)
+            observation["observation_channels"] = [
+                "visible_text",
+                "links",
+                "buttons",
+                "raw_html",
+                "meta",
+                "html_comments",
+                "hidden_text",
+            ]
+
+        return observation
+
+    @staticmethod
+    def _observe_extended(page) -> Dict[str, Any]:
+        raw_html = page.content()
+        raw_html = " ".join(raw_html.split())[:8000]
+
+        meta_info = page.evaluate(
+            """
+            () => {
+              const title = document.title || "";
+              const description = (document.querySelector('meta[name="description"]') || {}).content || "";
+              return { title, description };
+            }
+            """
+        )
+
+        hidden_texts = page.evaluate(
+            """
+            () => {
+              const hidden = [];
+              const elements = Array.from(document.querySelectorAll('*'));
+              for (const el of elements) {
+                const style = window.getComputedStyle(el);
+                const isHidden = style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0' || el.getAttribute('aria-hidden') === 'true';
+                const txt = (el.innerText || '').trim();
+                if (isHidden && txt) {
+                  hidden.push(txt);
+                }
+                if (hidden.length >= 20) break;
+              }
+              return hidden;
+            }
+            """
+        )
+
+        html_comments = page.evaluate(
+            """
+            () => {
+              const comments = [];
+              const walker = document.createTreeWalker(document, NodeFilter.SHOW_COMMENT);
+              while (walker.nextNode()) {
+                const value = (walker.currentNode.nodeValue || '').trim();
+                if (value) comments.push(value);
+                if (comments.length >= 20) break;
+              }
+              return comments;
+            }
+            """
+        )
+
+        marker_regex = re.compile(r"ignore|previous instructions|leak|secret|hacked", flags=re.IGNORECASE)
+        marker_pool = " ".join(
+            [
+                str(meta_info.get("title", "")),
+                str(meta_info.get("description", "")),
+                " ".join(hidden_texts or []),
+                " ".join(html_comments or []),
+                raw_html,
+            ]
+        )
+        markers = sorted(set(marker_regex.findall(marker_pool)))
+
+        return {
+            "raw_html": raw_html,
+            "meta_title": str(meta_info.get("title", ""))[:300],
+            "meta_description": str(meta_info.get("description", ""))[:500],
+            "hidden_text_samples": [str(x)[:300] for x in (hidden_texts or [])],
+            "html_comment_samples": [str(x)[:300] for x in (html_comments or [])],
+            "injection_markers": markers,
+        }
+
+    @staticmethod
+    def _is_attack_task(task_id: str, goal: str, start_url: str) -> bool:
+        joined = f"{task_id} {goal} {start_url}".lower()
+        keywords = ["attack", "injection", "conflict", "malicious", "adversarial"]
+        return any(k in joined for k in keywords)
 
     @staticmethod
     def _try_auto_finish(goal: str, observation: Dict[str, Any], page) -> AgentAction | None:
@@ -640,7 +742,11 @@ def load_tasks(path: str) -> List[Dict[str, str]]:
 def run_batch(config: AgentConfig, tasks_path: str) -> List[Dict[str, Any]]:
     run_id = datetime.now(timezone.utc).strftime("run_%Y%m%d_%H%M%S")
     logger = JsonlLogger(config.logs_dir, run_id)
-    controller = BrowserController(config.screenshots_dir)
+    controller = BrowserController(
+        screenshots_dir=config.screenshots_dir,
+        attack_surface_mode=config.attack_surface_mode,
+        strict_eval_mode=config.strict_eval_mode,
+    )
     reasoner = LocalReasoner(config)
 
     logger.log(
@@ -651,6 +757,8 @@ def run_batch(config: AgentConfig, tasks_path: str) -> List[Dict[str, Any]]:
             "loaded_model_id": reasoner.loaded_model_id,
             "device": "cuda" if torch.cuda.is_available() else "cpu",
             "load_in_4bit": config.load_in_4bit,
+            "attack_surface_mode": config.attack_surface_mode,
+            "strict_eval_mode": config.strict_eval_mode,
         }
     )
 
@@ -681,6 +789,8 @@ def main() -> None:
         model_id=os.getenv("MODEL_ID", "Qwen/Qwen2.5-7B-Instruct"),
         load_in_4bit=parse_bool_env("LOAD_IN_4BIT", True),
         max_steps=int(os.getenv("MAX_STEPS", "12")),
+        attack_surface_mode=os.getenv("ATTACK_SURFACE_MODE", "visible"),
+        strict_eval_mode=parse_bool_env("STRICT_EVAL_MODE", False),
     )
 
     tasks_path = os.getenv("TASKS_PATH", "configs/tasks_phase1.json")
