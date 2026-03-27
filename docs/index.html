@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+   <meta charset="utf-8" />
+   <meta name="viewport" content="width=device-width, initial-scale=1" />
+   <title>Agent Security Scenarios</title>
+   <style>
+      :root {
+         --bg: #f7f8f4;
+         --surface: #ffffff;
+         --ink: #1f2a2a;
+         --muted: #50605e;
+         --line: #d5dddb;
+         --accent: #0f766e;
+         --accent-soft: #d7f0ed;
+      }
+
+      * {
+         box-sizing: border-box;
+      }
+
+      body {
+         margin: 0;
+         font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+         color: var(--ink);
+         background: radial-gradient(circle at 10% 10%, #eef8f6, var(--bg));
+         line-height: 1.45;
+      }
+
+      .wrap {
+         max-width: 980px;
+         margin: 0 auto;
+         padding: 28px 16px 36px;
+      }
+
+      h1 {
+         margin: 0 0 10px;
+         font-size: 1.9rem;
+         letter-spacing: 0.2px;
+      }
+
+      p.lead {
+         margin: 0 0 18px;
+         color: var(--muted);
+         max-width: 80ch;
+      }
+
+      .panel {
+         background: var(--surface);
+         border: 1px solid var(--line);
+         border-radius: 12px;
+         padding: 14px;
+         margin: 14px 0;
+      }
+
+      h2 {
+         margin: 4px 0 10px;
+         font-size: 1.1rem;
+      }
+
+      ul {
+         margin: 8px 0 0;
+         padding-left: 20px;
+      }
+
+      li {
+         margin: 7px 0;
+      }
+
+      a {
+         color: var(--accent);
+         text-decoration: none;
+         font-weight: 600;
+      }
+
+      a:hover {
+         text-decoration: underline;
+      }
+
+      .tag {
+         display: inline-block;
+         margin-left: 8px;
+         padding: 2px 8px;
+         border-radius: 999px;
+         background: var(--accent-soft);
+         color: #0b534d;
+         font-size: 0.75rem;
+         font-weight: 600;
+         vertical-align: middle;
+      }
+
+      code {
+         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+         background: #eef2f1;
+         padding: 1px 6px;
+         border-radius: 5px;
+      }
+   </style>
+</head>
+
+<body>
+   <main class="wrap">
+      <h1>Agent Security Scenario Bench</h1>
+      <p class="lead">
+         Controlled pages for testing autonomous web navigation under clean and adversarial
+         (indirect prompt injection) conditions.
+      </p>
+
+      <section class="panel">
+         <h2>How To Use</h2>
+         <ul>
+            <li>Use clean scenarios as baseline behavior.</li>
+            <li>Use attack scenarios to measure attack success rate and robustness.</li>
+            <li>In task config, set start_url to this site paths under <code>/scenarios/</code>.</li>
+         </ul>
+      </section>
+
+      <section class="panel">
+         <h2>Baseline Scenarios</h2>
+         <ul>
+            <li><a href="scenarios/local_security_home.html">Security Home (navigation hub)</a></li>
+            <li><a href="scenarios/local_downloads_page.html">Downloads Page</a></li>
+            <li><a href="scenarios/local_policy_page.html">Policy Extraction Page</a></li>
+            <li><a href="scenarios/local_dartmouth_clean.html">Dartmouth Clean Fact Page</a></li>
+         </ul>
+      </section>
+
+      <section class="panel">
+         <h2>Attack Scenarios</h2>
+         <ul>
+            <li>
+               <a href="scenarios/local_dartmouth_with_conflict.html">Visible Conflict Instruction</a>
+               <span class="tag">visible</span>
+            </li>
+            <li>
+               <a href="scenarios/local_attack_note.html">Attack Note With Benign Target</a>
+               <span class="tag">mixed content</span>
+            </li>
+            <li>
+               <a href="scenarios/attack_hidden_css_injection.html">Hidden CSS Injection</a>
+               <span class="tag">hidden text</span>
+            </li>
+            <li>
+               <a href="scenarios/attack_html_comment_injection.html">HTML Comment Injection</a>
+               <span class="tag">comment channel</span>
+            </li>
+            <li>
+               <a href="scenarios/attack_meta_injection.html">Metadata Injection</a>
+               <span class="tag">meta channel</span>
+            </li>
+         </ul>
+      </section>
+   </main>
+</body>
+
+</html>
