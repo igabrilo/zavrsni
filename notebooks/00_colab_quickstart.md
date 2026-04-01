@@ -39,6 +39,14 @@ os.environ["ATTACK_SURFACE_MODE"] = "extended"
 os.environ["STRICT_EVAL_MODE"] = "1"
 ```
 
+Za multiturn indirect prompt injection set (clean vs attack chain):
+
+```python
+os.environ["TASKS_PATH"] = "configs/tasks_phase2_multiturn.json"
+os.environ["ATTACK_SURFACE_MODE"] = "extended"
+os.environ["STRICT_EVAL_MODE"] = "1"
+```
+
 Preporuka za bolji rezultat u Phase 1:
 
 ```python
@@ -64,3 +72,5 @@ os.environ["MODEL_ID"] = "Qwen/Qwen2.5-3B-Instruct"
 ## 6) Mijenjanje taskova
 
 Uredi datoteku `configs/tasks_phase1.json` i ponovno pokreni korak 4.
+
+Za multiturn validaciju s 3 runa, pokreni korak 4 tri puta i usporedi clean vs attack uspjesnost po runu.
