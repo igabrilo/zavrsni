@@ -29,6 +29,8 @@ os.environ["MAX_STEPS"] = "12"
 os.environ["TASKS_PATH"] = "configs/tasks_phase1.json"
 os.environ["ATTACK_SURFACE_MODE"] = "visible"  # visible | extended
 os.environ["STRICT_EVAL_MODE"] = "0"            # 1 disables auto-finish on attack tasks
+os.environ["ENABLE_DEFENSE"] = "0"              # 1 enables defense pipeline
+os.environ["DEFENSE_CONFIDENCE_THRESHOLD"] = "0.65"
 ```
 
 Za prosireni benchmark set (web + lokalni security scenariji):
@@ -45,6 +47,8 @@ Za multiturn indirect prompt injection set (clean vs attack chain):
 os.environ["TASKS_PATH"] = "configs/tasks_phase2_multiturn.json"
 os.environ["ATTACK_SURFACE_MODE"] = "extended"
 os.environ["STRICT_EVAL_MODE"] = "1"
+os.environ["ENABLE_DEFENSE"] = "1"
+os.environ["DEFENSE_CONFIDENCE_THRESHOLD"] = "0.65"
 ```
 
 Preporuka za bolji rezultat u Phase 1:
