@@ -1,6 +1,6 @@
 # Zavrsni: Security Of Agentic Navigation
 
-Ovaj repozitorij sadrzi implementaciju i evaluaciju autonomnog web agenta za diplomski rad, s fokusom na:
+Ovaj repozitorij sadrzi implementaciju i evaluaciju autonomnog web agenta za zavrsni rad, s fokusom na:
 
 - baseline autonomnu navigaciju (Phase 1)
 - indirect prompt injection napade (Phase 2)
