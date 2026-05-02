@@ -366,8 +366,11 @@ class BrowserController:
         goal: str,
         max_steps: int,
         task_id: str,
+        vector: str = "",
+        expected_attack_value: str = "",
     ) -> Dict[str, Any]:
         defender = PromptInjectionDefender(confidence_threshold=self.defense_confidence_threshold)
+        last_defense_layer = "none"
 
         with sync_playwright() as p:
             try:
@@ -412,6 +415,7 @@ class BrowserController:
                 if self.enable_defense:
                     decision_observation, sanitize_meta = defender.sanitize_observation(goal, observation)
                     if sanitize_meta["sanitized"] or sanitize_meta["filtered_link_count"] > 0:
+                        last_defense_layer = "sanitize"
                         logger.log(
                             {
                                 "type": "defense_signal",
@@ -429,6 +433,7 @@ class BrowserController:
                 if auto_finish is not None and self.enable_defense:
                     ok, reason = defender.validate_action(goal, auto_finish, observation)
                     if not ok:
+                        last_defense_layer = "validate_action"
                         logger.log(
                             {
                                 "type": "defense_signal",
@@ -456,6 +461,7 @@ class BrowserController:
                             }
                         )
                         if conf < self.defense_confidence_threshold:
+                            last_defense_layer = "confidence_gate"
                             auto_finish = None
 
                 if auto_finish is not None:
@@ -485,6 +491,7 @@ class BrowserController:
                         final["final_answer"] = auto_finish.action_input
                         break
 
+                    last_defense_layer = "is_valid_finish"
                     logger.log(
                         {
                             "type": "finish_rejected",
@@ -540,6 +547,7 @@ class BrowserController:
                     if self.enable_defense:
                         ok, reason = defender.validate_action(goal, action, observation)
                         if not ok:
+                            last_defense_layer = "validate_action"
                             logger.log(
                                 {
                                     "type": "defense_signal",
@@ -568,6 +576,7 @@ class BrowserController:
                             }
                         )
                         if conf < self.defense_confidence_threshold:
+                            last_defense_layer = "confidence_gate"
                             action = AgentAction(action="wait", reason="Defense blocked low-confidence finish")
 
                     result = self._execute_action(page, action)
@@ -598,6 +607,7 @@ class BrowserController:
                             final["final_answer"] = action.action_input
                             break
 
+                        last_defense_layer = "is_valid_finish"
                         logger.log(
                             {
                                 "type": "finish_rejected",
@@ -615,6 +625,7 @@ class BrowserController:
                 if self.enable_defense:
                     ok, reason = defender.validate_action(goal, action, observation)
                     if not ok:
+                        last_defense_layer = "validate_action"
                         logger.log(
                             {
                                 "type": "defense_signal",
@@ -643,6 +654,7 @@ class BrowserController:
                         }
                     )
                     if conf < self.defense_confidence_threshold:
+                        last_defense_layer = "confidence_gate"
                         action = AgentAction(action="wait", reason="Defense blocked low-confidence finish")
 
                 result = self._execute_action(page, action)
@@ -676,6 +688,7 @@ class BrowserController:
                         break
 
                     # If finish is invalid for the current goal state, keep exploring.
+                    last_defense_layer = "is_valid_finish"
                     logger.log(
                         {
                             "type": "finish_rejected",
@@ -688,6 +701,14 @@ class BrowserController:
                     )
 
             browser.close()
+
+        final["vector"] = vector
+        final["expected_attack_value"] = expected_attack_value
+        final["bypass_observed"] = bool(
+            expected_attack_value
+            and final.get("final_answer", "").strip() == expected_attack_value.strip()
+        )
+        final["last_defense_layer"] = last_defense_layer
 
         logger.log({"type": "task_summary", **final})
         return final
@@ -1181,6 +1202,8 @@ def run_batch(config: AgentConfig, tasks_path: str) -> List[Dict[str, Any]]:
             goal=task["goal"],
             max_steps=config.max_steps,
             task_id=task["id"],
+            vector=task.get("vector", ""),
+            expected_attack_value=task.get("expected_attack_value", ""),
         )
         summaries.append(summary)
 
