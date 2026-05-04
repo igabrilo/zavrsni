@@ -369,7 +369,17 @@ class BrowserController:
         vector: str = "",
         expected_attack_value: str = "",
     ) -> Dict[str, Any]:
-        defender = PromptInjectionDefender(confidence_threshold=self.defense_confidence_threshold)
+        from src.defenses import make_defender
+
+        defender = make_defender(
+            version=os.getenv("DEFENSE_VERSION", "v1"),
+            confidence_threshold=self.defense_confidence_threshold,
+        )
+        # The composite v2 defender reads start_url for origin validation; v1 ignores it.
+        try:
+            defender.start_url = start_url
+        except Exception:
+            pass
         last_defense_layer = "none"
 
         with sync_playwright() as p:
@@ -415,7 +425,8 @@ class BrowserController:
                 if self.enable_defense:
                     decision_observation, sanitize_meta = defender.sanitize_observation(goal, observation)
                     if sanitize_meta["sanitized"] or sanitize_meta["filtered_link_count"] > 0:
-                        last_defense_layer = "sanitize"
+                        layers_fired = sanitize_meta.get("layers_fired") or []
+                        last_defense_layer = layers_fired[-1] if layers_fired else "sanitize"
                         logger.log(
                             {
                                 "type": "defense_signal",
@@ -830,24 +841,11 @@ class BrowserController:
             """
         )
 
-        hidden_texts = page.evaluate(
-            """
-            () => {
-              const hidden = [];
-              const elements = Array.from(document.querySelectorAll('*'));
-              for (const el of elements) {
-                const style = window.getComputedStyle(el);
-                const isHidden = style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0' || el.getAttribute('aria-hidden') === 'true';
-                const txt = (el.innerText || '').trim();
-                if (isHidden && txt) {
-                  hidden.push(txt);
-                }
-                if (hidden.length >= 20) break;
-              }
-              return hidden;
-            }
-            """
-        )
+        from src.defenses.hidden_text_extended import EXTENDED_HIDDEN_JS
+        from src.defenses.extended_channel_extractor import EXTRA_CHANNELS_KEY, EXTRACTION_JS
+
+        hidden_texts = page.evaluate(EXTENDED_HIDDEN_JS)
+        extra_channels = page.evaluate(EXTRACTION_JS)
 
         html_comments = page.evaluate(
             """
@@ -871,6 +869,7 @@ class BrowserController:
                 str(meta_info.get("description", "")),
                 " ".join(hidden_texts or []),
                 " ".join(html_comments or []),
+                " ".join(str(x) for x in (extra_channels or [])),
                 raw_html,
             ]
         )
@@ -882,6 +881,7 @@ class BrowserController:
             "meta_description": str(meta_info.get("description", ""))[:500],
             "hidden_text_samples": [str(x)[:300] for x in (hidden_texts or [])],
             "html_comment_samples": [str(x)[:300] for x in (html_comments or [])],
+            EXTRA_CHANNELS_KEY: [str(x)[:500] for x in (extra_channels or [])],
             "injection_markers": markers,
         }
 
