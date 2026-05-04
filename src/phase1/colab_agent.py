@@ -1,11 +1,17 @@
 import json
 import os
 import re
+import sys
 import time
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+
+# Ensure repo root is importable when running this file directly (e.g., Colab).
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import torch
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
