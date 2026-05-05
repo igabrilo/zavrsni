@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 
 _BAD_REASON_RE = re.compile(
-    r"system notice|banner|server log|defen[cs]e cleared|verified by defender"
-    r"|authoris(ed|ed) value|authoriz(ed) value|rotation|migration|cleared|supersede(d)?",
+    r"system notice|server log|defen[cs]e cleared|verified by defender"
+    r"|authoris(ed|ed) value|authoriz(ed) value|supersede(d)?",
     flags=re.IGNORECASE,
 )
 
